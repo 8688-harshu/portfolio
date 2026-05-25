@@ -218,68 +218,62 @@ export default function AvatarScene() {
     // Try loading GLB, fall back to upgraded geometric humanoid
     let disposed = false;
 
+    function setupFallback() {
+      if (disposed) return;
+      const fallback = createFallbackHumanoid();
+      // Fit fallback model (scaled down from 2.0 to 1.4)
+      const box = new THREE.Box3().setFromObject(fallback);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const scale = 1.4 / maxDim;
+      fallback.scale.setScalar(scale);
+      const center = box.getCenter(new THREE.Vector3());
+      fallback.position.sub(center.multiplyScalar(scale));
+
+      setupModel(fallback);
+    }
+
     (async () => {
       try {
         const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
         const loader = new GLTFLoader();
 
-        loader.load(
-          '/avatar/harsha-avatar.glb',
-          (gltf) => {
-            if (disposed) return;
+        // Use relative URL path
+        const url = './avatar/harsha-avatar.glb';
 
-            const avatarModel = gltf.scene;
-            applyToonShading(avatarModel);
+        try {
+          const gltf = await loader.loadAsync(url);
+          if (disposed) return;
 
-            // Fit model (scaled down from 2.0 to 1.4 for proper spacing)
-            const box = new THREE.Box3().setFromObject(avatarModel);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 1.4 / maxDim;
-            avatarModel.scale.setScalar(scale);
+          const avatarModel = gltf.scene;
+          applyToonShading(avatarModel);
 
-            const center = box.getCenter(new THREE.Vector3());
-            avatarModel.position.sub(center.multiplyScalar(scale));
-
-            // Animations
-            if (gltf.animations.length > 0) {
-              mixer = new THREE.AnimationMixer(avatarModel);
-              const idleClip = gltf.animations[0];
-              const action = mixer.clipAction(idleClip);
-              action.play();
-            }
-
-            setupModel(avatarModel);
-          },
-          undefined,
-          (_err) => {
-            if (disposed) return;
-            const fallback = createFallbackHumanoid();
-            // Fit fallback model (scaled down from 2.0 to 1.4)
-            const box = new THREE.Box3().setFromObject(fallback);
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 1.4 / maxDim;
-            fallback.scale.setScalar(scale);
-            const center = box.getCenter(new THREE.Vector3());
-            fallback.position.sub(center.multiplyScalar(scale));
-
-            setupModel(fallback);
-          }
-        );
-      } catch {
-        if (!disposed) {
-          const fallback = createFallbackHumanoid();
-          const box = new THREE.Box3().setFromObject(fallback);
+          // Fit model (scaled down from 2.0 to 1.4 for proper spacing)
+          const box = new THREE.Box3().setFromObject(avatarModel);
           const size = box.getSize(new THREE.Vector3());
           const maxDim = Math.max(size.x, size.y, size.z);
           const scale = 1.4 / maxDim;
-          fallback.scale.setScalar(scale);
-          const center = box.getCenter(new THREE.Vector3());
-          fallback.position.sub(center.multiplyScalar(scale));
+          avatarModel.scale.setScalar(scale);
 
-          setupModel(fallback);
+          const center = box.getCenter(new THREE.Vector3());
+          avatarModel.position.sub(center.multiplyScalar(scale));
+
+          // Animations
+          if (gltf.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(avatarModel);
+            const idleClip = gltf.animations[0];
+            const action = mixer.clipAction(idleClip);
+            action.play();
+          }
+
+          setupModel(avatarModel);
+        } catch (loadErr) {
+          console.warn("Avatar GLB not found or failed to parse. Using geometric fallback humanoid.", loadErr);
+          setupFallback();
         }
+      } catch (importErr) {
+        console.error("Failed to load GLTFLoader module. Using fallback.", importErr);
+        setupFallback();
       }
     })();
 

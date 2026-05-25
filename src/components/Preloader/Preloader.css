@@ -1,0 +1,33 @@
+/* Preloader monogram SVG path animation base styles */
+.preloader-monogram path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  will-change: stroke-dashoffset, fill;
+}
+
+/* Scan line glow */
+.scan-line {
+  will-change: top, opacity;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #00f5ff 15%,
+    #00f5ff 85%,
+    transparent 100%
+  );
+}
+
+/* Subtle pulse for the monogram while drawing */
+@keyframes monogram-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(0, 245, 255, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(0, 245, 255, 0.5));
+  }
+}
+
+.preloader-monogram {
+  animation: monogram-pulse 1.5s ease-in-out infinite;
+}

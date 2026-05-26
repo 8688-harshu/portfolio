@@ -8,5 +8,5 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  assetsInclude: ['**/*.glb'],
+  assetsInclude: ['**/*.glb', '**/*.vrm'],
 });

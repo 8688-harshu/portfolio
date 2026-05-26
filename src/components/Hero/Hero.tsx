@@ -1,31 +1,8 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import HeroText from './HeroText';
 import ThreeScene from './ThreeScene';
-
-/* Lazy-load the heavy 3D avatar component */
-const AvatarScene = React.lazy(() => import('../Avatar/AvatarScene'));
-
-/* -------------------------------------------------------------------------- */
-/*  Avatar loading fallback                                                   */
-/* -------------------------------------------------------------------------- */
-
-function AvatarFallback() {
-  return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="relative">
-        {/* Pulsing ring */}
-        <div
-          className="w-24 h-24 rounded-full border-2 border-[#00f5ff33] animate-ping"
-          style={{ animationDuration: '1.5s' }}
-        />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-3 h-3 rounded-full bg-[#00f5ff]" />
-        </div>
-      </div>
-    </div>
-  );
-}
+import AvatarScene from '../Avatar/AvatarScene';
 
 /* -------------------------------------------------------------------------- */
 /*  Scroll Indicator                                                          */
@@ -123,11 +100,10 @@ export default function Hero() {
         />
       </div>
 
-      {/* ---- Right: Avatar canvas (45%) ---- */}
       <div className="relative z-10 w-full md:w-[45%] h-[50vh] md:h-screen flex items-center justify-center pt-[20px] md:pt-[80px]">
-        <Suspense fallback={<AvatarFallback />}>
+        <div style={{ width: '100%', height: '600px', position: 'relative' }}>
           <AvatarScene />
-        </Suspense>
+        </div>
       </div>
 
       {/* ---- Scroll indicator ---- */}

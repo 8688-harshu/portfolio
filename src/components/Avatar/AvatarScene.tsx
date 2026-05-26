@@ -1,372 +1,195 @@
-import { useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { createIdleAnimation, createMouseTracker } from './AvatarControls';
-import { applyToonShading } from './toonShader';
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm'
 
-/* -------------------------------------------------------------------------- */
-/*  Fallback geometric humanoid                                               */
-/* -------------------------------------------------------------------------- */
-
-function createFallbackHumanoid(): THREE.Group {
-  const group = new THREE.Group();
-
-  const wireColor = 0x00f5ff;
-
-  // Head material (MeshPhongMaterial with cyan emissive)
-  const headMat = new THREE.MeshPhongMaterial({
-    color: 0x050505,
-    emissive: 0x00f5ff,
-    emissiveIntensity: 0.5,
-    wireframe: false,
-    shininess: 100,
-  });
-
-  // Aura material (wireframe sphere slightly larger)
-  const auraMat = new THREE.MeshBasicMaterial({
-    color: wireColor,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.3,
-  });
-
-  // Body materials (wireframe capsule representation)
-  const bodyWireMat = new THREE.MeshPhongMaterial({
-    color: 0x000000,
-    emissive: 0x0088ff,
-    emissiveIntensity: 0.35,
-    wireframe: true,
-    transparent: true,
-    opacity: 0.65,
-  });
-
-  const jointMat = new THREE.MeshBasicMaterial({
-    color: wireColor,
-    transparent: true,
-    opacity: 0.9,
-  });
-
-  // ---- Head ----
-  const headGeo = new THREE.IcosahedronGeometry(1.2, 1);
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.position.y = 6.0;
-  group.add(head);
-
-  // ---- Aura ----
-  const auraGeo = new THREE.SphereGeometry(1.35, 16, 16);
-  const aura = new THREE.Mesh(auraGeo, auraMat);
-  aura.position.y = 6.0;
-  group.add(aura);
-
-  // ---- Torso (Capsule instead of cylinder) ----
-  const torsoGeo = new THREE.CapsuleGeometry(0.8, 2.4, 8, 16);
-  const torso = new THREE.Mesh(torsoGeo, bodyWireMat);
-  torso.position.y = 3.6;
-  group.add(torso);
-
-  // ---- Arms (Capsules) ----
-  const armGeo = new THREE.CapsuleGeometry(0.25, 2.0, 8, 16);
-
-  const leftArm = new THREE.Mesh(armGeo, bodyWireMat);
-  leftArm.position.set(-1.4, 3.8, 0);
-  leftArm.rotation.z = Math.PI / 6;
-  group.add(leftArm);
-
-  const rightArm = new THREE.Mesh(armGeo, bodyWireMat);
-  rightArm.position.set(1.4, 3.8, 0);
-  rightArm.rotation.z = -Math.PI / 6;
-  group.add(rightArm);
-
-  // ---- Legs (Capsules) ----
-  const legGeo = new THREE.CapsuleGeometry(0.28, 2.2, 8, 16);
-
-  const leftLeg = new THREE.Mesh(legGeo, bodyWireMat);
-  leftLeg.position.set(-0.5, 1.2, 0);
-  group.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, bodyWireMat);
-  rightLeg.position.set(0.5, 1.2, 0);
-  group.add(rightLeg);
-
-  // ---- Joints (connection spheres) ----
-  const jointGeo = new THREE.SphereGeometry(0.25, 8, 8);
-  const jointPositions = [
-    [0, 4.8, 0],       // neck
-    [-1.0, 4.6, 0],    // left shoulder
-    [1.0, 4.6, 0],     // right shoulder
-    [-0.5, 2.4, 0],    // left hip
-    [0.5, 2.4, 0],     // right hip
-  ];
-
-  jointPositions.forEach(([x, y, z]) => {
-    const joint = new THREE.Mesh(jointGeo, jointMat);
-    joint.position.set(x, y, z);
-    group.add(joint);
-  });
-
-  return group;
-}
-
-/* -------------------------------------------------------------------------- */
-/*  AvatarScene Component                                                     */
-/* -------------------------------------------------------------------------- */
-
-export default function AvatarScene() {
-  const containerRef = useRef<HTMLDivElement>(null);
+const AvatarScene = () => {
+  const mountRef = useRef<HTMLDivElement>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    if (!mountRef.current) return
 
-    /* ---- Renderer ---- */
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setClearColor(0x000000, 0);
-    container.appendChild(renderer.domElement);
+    // Scene setup
+    const scene = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(30, 0.6, 0.1, 100)
+    camera.position.set(0, 1.4, 4.5)
 
-    /* ---- Scene ---- */
-    const scene = new THREE.Scene();
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true, 
+      alpha: true 
+    })
+    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight)
+    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    mountRef.current.appendChild(renderer.domElement)
 
-    /* ---- Camera ---- */
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      100
-    );
-    camera.position.set(0, 0, 4.5);
-    camera.lookAt(0, 0, 0);
+    // Lighting for anime look
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+    scene.add(ambientLight)
 
-    /* ---- Lighting ---- */
-    const ambient = new THREE.AmbientLight(0x0a0a0a);
-    scene.add(ambient);
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5)
+    mainLight.position.set(1, 2, 3)
+    scene.add(mainLight)
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    dirLight.position.set(2, 3, 2);
-    scene.add(dirLight);
+    // Cyan rim light (signature look)
+    const rimLight = new THREE.PointLight(0x00f5ff, 3, 10)
+    rimLight.position.set(-2, 2, -1)
+    scene.add(rimLight)
 
-    // 3 PointLights as requested
-    const pLightCyan = new THREE.PointLight(0x00f5ff, 2.5, 15);
-    pLightCyan.position.set(3, 3, 3);
-    scene.add(pLightCyan);
+    // Blue fill light
+    const fillLight = new THREE.PointLight(0x4444ff, 1, 10)
+    fillLight.position.set(2, 0, -2)
+    scene.add(fillLight)
 
-    const pLightWhite = new THREE.PointLight(0xffffff, 1.5, 15);
-    pLightWhite.position.set(-3, 3, -3);
-    scene.add(pLightWhite);
-
-    const pLightDeepBlue = new THREE.PointLight(0x0044ff, 2.0, 15);
-    pLightDeepBlue.position.set(0, -3, 3);
-    scene.add(pLightDeepBlue);
-
-    /* ---- Decoupled Rotation Structure ---- */
-    const rotationGroup = new THREE.Group();
-    const orbitGroup = new THREE.Group();
-    rotationGroup.add(orbitGroup);
-    scene.add(rotationGroup);
-
-    /* ---- Orbiting Particle Ring ---- */
-    const pCount = 100;
-    const pGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(pCount * 3);
-    const pAngles = new Float32Array(pCount);
-    const pSpeeds = new Float32Array(pCount);
-    const pRadii = new Float32Array(pCount);
-    const pYPos = new Float32Array(pCount);
-
-    for (let i = 0; i < pCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 1.3 + Math.random() * 0.6;
-      const y = (Math.random() - 0.5) * 0.3;
-
-      pAngles[i] = angle;
-      pRadii[i] = radius;
-      pYPos[i] = y;
-      pSpeeds[i] = 0.2 + Math.random() * 0.3;
-
-      const i3 = i * 3;
-      pPos[i3] = Math.cos(angle) * radius;
-      pPos[i3 + 1] = y;
-      pPos[i3 + 2] = Math.sin(angle) * radius;
+    // Mouse tracking
+    const mouse = { x: 0, y: 0 }
+    const handleMouseMove = (e: MouseEvent) => {
+      mouse.x = (e.clientX / window.innerWidth - 0.5) * 2
+      mouse.y = -(e.clientY / window.innerHeight - 0.5) * 2
     }
+    window.addEventListener('mousemove', handleMouseMove)
 
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    const pMat = new THREE.PointsMaterial({
-      color: 0x00f5ff,
-      size: 0.035,
-      transparent: true,
-      opacity: 0.7,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
-    const particleRing = new THREE.Points(pGeo, pMat);
-    // Add to orbitGroup so it aligns with the shifted position of the model
-    orbitGroup.add(particleRing);
+    // Load VRM
+    let currentVrm: any = null
+    const loader = new GLTFLoader()
+    loader.register((parser) => new VRMLoaderPlugin(parser))
 
-    /* ---- Avatar model ---- */
-    let model: THREE.Object3D;
-    let mixer: THREE.AnimationMixer | null = null;
-    let idleUpdate: ReturnType<typeof createIdleAnimation> | null = null;
-    let mouseTracker: ReturnType<typeof createMouseTracker> | null = null;
+    loader.load(
+      './avatar/harsha-avatar.vrm', // changed to relative path for gh-pages support
+      (gltf) => {
+        const vrm = gltf.userData.vrm
+        currentVrm = vrm
+        VRMUtils.removeUnnecessaryJoints(gltf.scene)
+        scene.add(vrm.scene)
 
-    function setupModel(obj: THREE.Object3D) {
-      model = obj;
-      orbitGroup.add(model);
-      idleUpdate = createIdleAnimation(model);
-      mouseTracker = createMouseTracker(rotationGroup, container!);
-    }
+        // Center avatar
+        vrm.scene.position.set(0, -0.8, 0)
 
-    // Try loading GLB, fall back to upgraded geometric humanoid
-    let disposed = false;
+        // Entry animation
+        vrm.scene.scale.set(0, 0, 0)
+        let scaleProgress = 0
+        const scaleIn = setInterval(() => {
+          scaleProgress += 0.05
+          const s = Math.min(1, scaleProgress)
+          vrm.scene.scale.set(s, s, s)
+          if (s >= 1) clearInterval(scaleIn)
+        }, 16)
 
-    function setupFallback() {
-      if (disposed) return;
-      const fallback = createFallbackHumanoid();
-      // Fit fallback model (scaled down from 2.0 to 1.4)
-      const box = new THREE.Box3().setFromObject(fallback);
-      const size = box.getSize(new THREE.Vector3());
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const scale = 1.4 / maxDim;
-      fallback.scale.setScalar(scale);
-      const center = box.getCenter(new THREE.Vector3());
-      fallback.position.sub(center.multiplyScalar(scale));
-
-      setupModel(fallback);
-    }
-
-    (async () => {
-      try {
-        const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-        const loader = new GLTFLoader();
-
-        // Use relative URL path
-        const url = './avatar/harsha-avatar.glb';
-
-        try {
-          const gltf = await loader.loadAsync(url);
-          if (disposed) return;
-
-          const avatarModel = gltf.scene;
-          applyToonShading(avatarModel);
-
-          // Fit model (scaled down from 2.0 to 1.4 for proper spacing)
-          const box = new THREE.Box3().setFromObject(avatarModel);
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const scale = 1.4 / maxDim;
-          avatarModel.scale.setScalar(scale);
-
-          const center = box.getCenter(new THREE.Vector3());
-          avatarModel.position.sub(center.multiplyScalar(scale));
-
-          // Animations
-          if (gltf.animations.length > 0) {
-            mixer = new THREE.AnimationMixer(avatarModel);
-            const idleClip = gltf.animations[0];
-            const action = mixer.clipAction(idleClip);
-            action.play();
-          }
-
-          setupModel(avatarModel);
-        } catch (loadErr) {
-          console.warn("Avatar GLB not found or failed to parse. Using geometric fallback humanoid.", loadErr);
-          setupFallback();
+        // Add cyan particle aura
+        const particleCount = 120
+        const positions = new Float32Array(particleCount * 3)
+        for (let i = 0; i < particleCount; i++) {
+          const angle = (i / particleCount) * Math.PI * 2
+          const radius = 0.9 + Math.random() * 0.3
+          const height = Math.random() * 2.5 - 0.5
+          positions[i * 3] = Math.cos(angle) * radius
+          positions[i * 3 + 1] = height
+          positions[i * 3 + 2] = Math.sin(angle) * radius
         }
-      } catch (importErr) {
-        console.error("Failed to load GLTFLoader module. Using fallback.", importErr);
-        setupFallback();
+        const particleGeo = new THREE.BufferGeometry()
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+        const particleMat = new THREE.PointsMaterial({
+          color: 0x00f5ff,
+          size: 0.025,
+          transparent: true,
+          opacity: 0.7,
+          blending: THREE.AdditiveBlending
+        })
+        const particles = new THREE.Points(particleGeo, particleMat)
+        vrm.scene.add(particles)
+        
+        // Disable loading state
+        setLoading(false)
+      },
+      (progress) => {
+        console.log('Loading VRM:', (progress.loaded / progress.total * 100).toFixed(0) + '%')
+      },
+      (error) => {
+        console.error('VRM load error:', error)
       }
-    })();
+    )
 
-    // Initialize orbitGroup offset responsively based on viewport width
-    const setResponsiveOffset = () => {
-      if (window.innerWidth < 768) {
-        orbitGroup.position.set(0, 0, 0);
-      } else {
-        orbitGroup.position.set(0.35, -0.15, 0); // Shift right and slightly down
+    // Animation loop
+    let frameId: number
+    const clock = new THREE.Clock()
+    const animate = () => {
+      frameId = requestAnimationFrame(animate)
+      const elapsed = clock.getElapsedTime()
+
+      if (currentVrm) {
+        // Floating animation
+        currentVrm.scene.position.y = -0.8 + Math.sin(elapsed * 0.8) * 0.04
+
+        // Mouse head tracking (smooth lerp)
+        currentVrm.scene.rotation.y += (mouse.x * 0.3 - currentVrm.scene.rotation.y) * 0.05
+        
+        // Subtle breathing on X
+        currentVrm.scene.rotation.x += (mouse.y * 0.1 - currentVrm.scene.rotation.x) * 0.05
+
+        // Rotate particle aura
+        const particles = currentVrm.scene.children.find(
+          (c: any) => c instanceof THREE.Points
+        )
+        if (particles) particles.rotation.y = elapsed * 0.3
+
+        // Pulse rim light
+        rimLight.intensity = 2.5 + Math.sin(elapsed * 2) * 0.5
+
+        currentVrm.update(clock.getDelta())
       }
-    };
-    setResponsiveOffset();
 
-    /* ---- Resize ---- */
-    function onResize() {
-      if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      setResponsiveOffset();
+      renderer.render(scene, camera)
     }
-    window.addEventListener('resize', onResize);
+    animate()
 
-    /* ---- Animation loop ---- */
-    const clock = new THREE.Clock();
-    let rafId: number;
-
-    function animate() {
-      rafId = requestAnimationFrame(animate);
-      const delta = clock.getDelta();
-
-      if (mixer) mixer.update(delta);
-      if (idleUpdate) idleUpdate();
-      if (mouseTracker) mouseTracker.update();
-
-      // Continuous rotation on Y axis (0.003 rad/frame)
-      orbitGroup.rotation.y += 0.003;
-
-      // Update particle ring orbit
-      const posAttr = pGeo.getAttribute('position') as THREE.BufferAttribute;
-      for (let i = 0; i < pCount; i++) {
-        pAngles[i] += pSpeeds[i] * delta;
-        const i3 = i * 3;
-        posAttr.array[i3] = Math.cos(pAngles[i]) * pRadii[i];
-        posAttr.array[i3 + 1] = pYPos[i];
-        posAttr.array[i3 + 2] = Math.sin(pAngles[i]) * pRadii[i];
-      }
-      posAttr.needsUpdate = true;
-
-      renderer.render(scene, camera);
+    // Resize handler
+    const handleResize = () => {
+      if (!mountRef.current) return
+      const w = mountRef.current.clientWidth
+      const h = mountRef.current.clientHeight
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+      renderer.setSize(w, h)
     }
+    window.addEventListener('resize', handleResize)
 
-    animate();
-
-    /* ---- Cleanup ---- */
+    // Cleanup
     return () => {
-      disposed = true;
-      cancelAnimationFrame(rafId);
-      window.removeEventListener('resize', onResize);
-
-      if (mouseTracker) mouseTracker.cleanup();
-
-      // Dispose scene objects
-      scene.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          mesh.geometry?.dispose();
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach((m) => m.dispose());
-          } else {
-            mesh.material?.dispose();
-          }
-        }
-      });
-
-      pGeo.dispose();
-      pMat.dispose();
-
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
+      cancelAnimationFrame(frameId)
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('resize', handleResize)
+      renderer.dispose()
+      if (mountRef.current && renderer.domElement.parentNode === mountRef.current) {
+        mountRef.current.removeChild(renderer.domElement)
       }
-    };
-  }, []);
+    }
+  }, [])
 
   return (
-    <div
-      ref={containerRef}
-      data-cursor="avatar"
-      className="w-full h-full"
-      style={{ minHeight: '300px' }}
-    />
-  );
+    <div 
+      ref={mountRef} 
+      style={{ 
+        width: '100%', 
+        height: '100%',
+        minHeight: '600px',
+        position: 'relative'
+      }}
+    >
+      {loading && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color: '#00f5ff', fontFamily: 'JetBrains Mono, monospace',
+          fontSize: '14px', letterSpacing: '0.1em',
+          zIndex: 10,
+          pointerEvents: 'none'
+        }}>
+          LOADING AVATAR...
+        </div>
+      )}
+    </div>
+  )
 }
+
+export default AvatarScene

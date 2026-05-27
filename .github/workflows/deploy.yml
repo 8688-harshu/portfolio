@@ -1,3 +1,4 @@
+# Trigger rebuild and deployment to GitHub Pages
 name: Deploy to GitHub Pages
 
 on:

@@ -8,12 +8,12 @@ gsap.registerPlugin(ScrollTrigger);
 
 const PROJECTS = [
   {
-    title: 'TrustLens',
-    subtitle: 'AI-Powered Fake News Detection Platform',
+    title: 'TrustLens AI',
+    subtitle: 'Autonomous Website Trust Engine',
     description:
-      'End-to-end fake news detection system leveraging NLP and deep learning models. Features real-time article analysis, credibility scoring, and source verification with a modern React dashboard.',
-    stat: '94% Detection Accuracy',
-    tags: ['Python', 'NLP', 'React', 'Flask', 'Deep Learning', 'REST API'],
+      'Developed AI-driven trust evaluation framework for analyzing website reliability, usability, and performance. Built autonomous crawler detecting UI/UX issues, broken links, and session failures. Improved website reliability metrics by 30% through automated trust scoring.',
+    stat: '30% Reliability Improvement',
+    tags: ['Python', 'AI', 'Web Crawling', 'UI/UX Analysis', 'Automation', 'Trust Scoring'],
     icon: 'trustlens' as const,
   },
   {

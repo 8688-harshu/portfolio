@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import HeroText from './HeroText';
 import ThreeScene from './ThreeScene';
-import AvatarScene from '../Avatar/AvatarScene';
+import AIBrainScene from './AIBrainScene';
 
 /* -------------------------------------------------------------------------- */
 /*  Scroll Indicator                                                          */
@@ -90,8 +90,8 @@ export default function Hero() {
         }}
       />
 
-      {/* ---- Left: Text content (55%) ---- */}
-      <div className="relative z-10 flex items-center justify-start w-full md:w-[55%] px-6 md:px-16 pt-[100px] pb-12 md:py-0 md:pt-[80px] min-h-[50vh] md:min-h-0">
+      {/* ---- Left: Text content (50%) ---- */}
+      <div className="relative z-10 flex items-center justify-start w-full md:w-[50%] px-6 md:px-16 pt-[100px] pb-12 md:py-0 md:pt-[80px] min-h-[50vh] md:min-h-0">
         <HeroText
           startAnimation={startTextAnimation}
           onAnimationComplete={() => {
@@ -100,10 +100,9 @@ export default function Hero() {
         />
       </div>
 
-      <div className="relative z-10 w-full md:w-[45%] h-[50vh] md:h-screen flex items-center justify-center pt-[20px] md:pt-[80px]">
-        <div style={{ width: '100%', height: '600px', position: 'relative' }}>
-          <AvatarScene />
-        </div>
+      {/* ---- Right: AI Brain scene (50%) ---- */}
+      <div className="relative z-10 w-full md:w-[50%] h-[50vh] md:h-screen">
+        <AIBrainScene />
       </div>
 
       {/* ---- Scroll indicator ---- */}
